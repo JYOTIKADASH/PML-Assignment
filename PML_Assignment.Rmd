@@ -1,0 +1,106 @@
+---
+title: "PML - Assignment"
+author: "JND"
+date: "1 May 2017"
+output: html_document
+---
+
+##Study Background
+In this study, the goal is to investigate how well an activity was performed by six wearers of electronic devices.  They were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions, namely
+
+Class A: exactly according to the specification
+Class B: throwing the elbows to the front
+Class C: lifting the dumbbell only halfway
+Class D: lowering the dumbbell only half way
+Class E: throwing the hips to the front.
+Notice that only class A corresponds to the specified execution of the exercise, and others correspond to common mistakes. To ensure the quality of data, an experienced weight lifter was there to supervise the participants. More information is available from the website here.
+
+##Project Goal
+The goal of this project is to predict the manner in which the participants did the exercise. 
+
+##Data Processing
+```{r}
+## Load packages necessary
+library(caret)
+library(randomForest)
+library(rpart)
+library(RGtk2)
+library(rattle)
+library(rpart.plot)
+library(repmis)
+
+
+
+## set directory 
+setwd("C:/Users/Niki/Desktop/pml")
+training <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+testing <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+```
+
+##Data Cleaning
+
+```{r}
+#We now delete columns (predictors) of the training set that contain any missing values.
+
+training <- training[, colSums(is.na(training)) == 0]
+testing <- testing[, colSums(is.na(testing)) == 0]
+
+#We also remove the first seven predictors since these variables have little predicting power for the outcome classe.
+
+trainData <- training[, -c(1:7)]
+testData <- testing[, -c(1:7)]
+```
+
+##Data Splitting
+
+```{r}
+set.seed(4447) 
+inTrain <- createDataPartition(trainData$classe, p = 0.7, list = FALSE)
+train <- trainData[inTrain, ]
+valid <- trainData[-inTrain, ]
+```
+
+#Prediction Algorithms
+We use classification trees and random forests to predict the outcome.
+
+#Classification trees
+Here we consider 10-fold cross validation. 
+
+```{r}
+control <- trainControl(method = "cv", number = 10)
+fit_rpart <- train(classe ~ ., data = train, method = "rpart", 
+                   trControl = control)
+print(fit_rpart)
+fancyRpartPlot(fit_rpart$finalModel)
+# predict outcomes using validation set
+predict_rpart <- predict(fit_rpart, valid)
+# Show prediction result
+(conf_rpart <- confusionMatrix(valid$classe, predict_rpart))
+(accuracy_rpart <- conf_rpart$overall[1])
+
+```
+From the confusion matrix, the accuracy rate is approx 0.5 (0.498), and so the out-of-sample error rate is 0.5. Using classification tree does not predict the outcome classe very well.
+
+
+##Random forests
+Since classification tree method does not perform well, we try random forest method instead.
+
+```{r}
+fit_rf <- randomForest(classe ~pitch_forearm+magnet_arm_x+accel_arm_x+  total_accel_forearm+magnet_dumbbell_z+accel_dumbbell_x, data=train)
+print(fit_rf)
+# predict outcomes using validation set
+predict_rf <- predict(fit_rf, valid)
+# Show prediction result
+(conf_rf <- confusionMatrix(valid$classe, predict_rf))
+(accuracy_rf <- conf_rf$overall[1])
+```
+
+For this dataset, random forest method is way better than classification tree method. The accuracy rate is 0.884, and so the out-of-sample error rate is 0.116.
+
+##Prediction on Testing Set
+We now use random forests to predict the outcome variable classe for the testing set.
+
+```{r}
+(predict(fit_rf, testData))
+```
+
